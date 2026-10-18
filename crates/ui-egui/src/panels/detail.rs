@@ -36,6 +36,17 @@ pub enum Gesture {
         start: lightcraft_geom::Rect,
         angle: f64,
     },
+    /// Lightroom-style crop: the frame stays put and the image pans under it (the applied rect
+    /// moves opposite the pointer; the display translates by the applied delta).
+    CropPan {
+        /// The crop rect when the pan started (the display offset is measured from it).
+        start_rect: lightcraft_geom::Rect,
+    },
+    /// Lightroom-style crop: a new box drawn in the dimmed area, anchored at `a0`
+    /// (normalized, straightened frame).
+    CropNewBox {
+        a0: Point,
+    },
     /// Straighten tool: a line drawn along something that should be level (or plumb).
     StraightenLine {
         a: Pos2,
@@ -678,6 +689,18 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             app.renderer.release(slot);
         }
     }
+    // Lightroom-style crop: the image turns with the angle and slides with the pan under the fixed
+    // frame (the offset is the applied rect's own movement; it resets when the drag ends)
+    let crop_lr = crop_tool && app.ui.settings.crop_lightroom();
+    let crop_angle = d.crop.geometry.angle;
+    let crop_pan = match &app.gesture {
+        Some(Gesture::CropPan { start_rect }) if crop_lr => {
+            let (c0, c1) = (start_rect.center(), d.crop.geometry.rect.center());
+            let (dx, dy) = ((c1.x - c0.x) as f32, (c1.y - c0.y) as f32);
+            -vec2(dx * img_rect.width(), dy * img_rect.height())
+        }
+        _ => vec2(0.0, 0.0),
+    };
     let p = ui.painter_at(canvas);
     // what a view slot shows: its own render of this photo, else the stand-ins (no blank frame
     // between photos, and the full render replaces them in place)
@@ -693,7 +716,13 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             return "none";
         };
         let image_rect = fit_texture_rect(r, tex.size);
-        p.with_clip_rect(clip).image(tex.tex.id(), image_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+        let painter = p.with_clip_rect(clip);
+        if crop_lr {
+            // the image turns with the crop angle; the frame around it stays put
+            draw_rotated_image(&painter, tex.tex.id(), image_rect.translate(crop_pan), crop_angle);
+        } else {
+            painter.image(tex.tex.id(), image_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+        }
         what
     };
     // soft proofing: a paper-white surround and the proof's name, as Lightroom shows it
@@ -841,7 +870,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     }
     if !navigating {
         match right {
-            RightPanel::Crop => crop_overlay(app, ui, &resp, &map, &frame, &d, id),
+            RightPanel::Crop => crop_overlay(app, ui, &resp, &map, &frame, &d, id, crop_pan),
             RightPanel::Masking => mask_overlay(app, ui, &resp, &map, &d),
             RightPanel::Remove => remove_overlay(app, ui, &resp, &map, &d),
             RightPanel::RedEye => eye_overlay(app, ui, &resp, &map, &d),
@@ -1478,7 +1507,16 @@ fn general_interaction(
 
 // ------------------------------------------------------------------------ crop
 
-fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, frame: &Frame, d: &DevelopSettings, id: PhotoId) {
+fn crop_overlay(
+    app: &mut LightcraftApp,
+    ui: &mut egui::Ui,
+    resp: &egui::Response,
+    map: &CanvasMap,
+    frame: &Frame,
+    d: &DevelopSettings,
+    id: PhotoId,
+    pan: egui::Vec2,
+) {
     if app.ui.tool == "guidedUpright" {
         guided_overlay(app, ui, resp, map, frame, d);
         return;
@@ -1496,14 +1534,24 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
     if resp.hovered() && ui.input(|i| i.modifiers.command) {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
     }
-    let quad = frame_crop_quad(d, frame);
-    let pts: Vec<Pos2> = quad.iter().map(|q| map.screen(*q)).collect();
+    let lr = app.ui.settings.crop_lightroom();
+    let angle = d.crop.geometry.angle;
+    let r = d.crop.geometry.rect;
+    // Lightroom style: the display is the straightened frame, so the box is axis-aligned (the
+    // image, drawn rotated, may reach past it into the margin); Photoshop rotates the box instead
+    let pts: Vec<Pos2> = if lr {
+        let at = |x: f64, y: f64| pos2(map.rect.left() + (x as f32) * map.rect.width(), map.rect.top() + (y as f32) * map.rect.height()) + pan;
+        vec![at(r.x0, r.y0), at(r.x1, r.y0), at(r.x1, r.y1), at(r.x0, r.y1)]
+    } else {
+        frame_crop_quad(d, frame).iter().map(|q| map.screen(*q)).collect()
+    };
     let p = ui.painter();
-    // darken outside the crop (the box's corners in screen order: a flipped photo shows its
-    // top-left corner elsewhere)
+    // darken outside the crop: around the rotated box in Photoshop; in Lightroom around the
+    // axis-aligned one, over the turned image's bounding box (the corners reach into the margin)
     let quad = flipped_corners(&pts, frame.flip_h, frame.flip_v);
     if pts.len() == 4 {
-        p.add(outside_crop_mesh(map.rect, &quad, Color32::from_black_alpha(150)));
+        let dim = if lr { rotated_image_bbox(map.rect, angle).translate(pan) } else { map.rect };
+        p.add(outside_crop_mesh(dim, &quad, Color32::from_black_alpha(150)));
     }
     p.add(egui::Shape::closed_line(pts.clone(), Stroke::new(1.0, Color32::WHITE)));
     // overlay guides
@@ -1534,7 +1582,7 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
     };
     // a crop drag cut short (the tool closed before the release) leaves its gesture behind: with no
     // button held it is over
-    if matches!(app.gesture, Some(Gesture::CropRotate { .. } | Gesture::CropHandle { .. }))
+    if matches!(app.gesture, Some(Gesture::CropRotate { .. } | Gesture::CropHandle { .. } | Gesture::CropPan { .. } | Gesture::CropNewBox { .. }))
         && !resp.drag_stopped()
         && !ui.input(|i| i.pointer.any_down())
     {
@@ -1546,24 +1594,32 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
     // with ⌘ held a drag draws a level line (the straighten crosshair, set above), not a rotation
     let straightening = !rotating && ui.input(|i| i.modifiers.command);
     if let Some(hq) = pointer.filter(|_| !straightening) {
-        // a move or resize drag keeps its pointer wherever it goes, even past the box
+        // a move or resize drag keeps its pointer wherever it goes, even past the box; so do
+        // a pan and a new box in the Lightroom style (the rotation glyph would claim they rotate)
         let held = match app.gesture {
             Some(Gesture::CropHandle { handle, .. }) => Some(usize::from(handle)),
+            Some(Gesture::CropPan { .. }) => Some(8),
             _ => None,
         };
         let near = held.or_else(|| handles.iter().position(|h| h.distance(hq) < 12.0)).filter(|_| !rotating);
-        let cursor = match near {
-            Some(0 | 2) => egui::CursorIcon::ResizeNwSe,
-            Some(1 | 3) => egui::CursorIcon::ResizeNeSw,
-            Some(4 | 6) => egui::CursorIcon::ResizeVertical,
-            Some(5 | 7) => egui::CursorIcon::ResizeHorizontal,
-            // 8: the whole box
-            Some(_) => egui::CursorIcon::Move,
-            None if inside(hq) && !rotating => egui::CursorIcon::Move,
-            // a drag here rotates: no system cursor shows that, so draw a curved double arrow
-            None => {
-                rotate_cursor(ui, hq, rotate_cursor_turn(&pts, hq, inside(hq)));
-                egui::CursorIcon::None
+        let cursor = if matches!(app.gesture, Some(Gesture::CropNewBox { .. })) {
+            egui::CursorIcon::Crosshair
+        } else {
+            match near {
+                Some(0 | 2) => egui::CursorIcon::ResizeNwSe,
+                Some(1 | 3) => egui::CursorIcon::ResizeNeSw,
+                Some(4 | 6) => egui::CursorIcon::ResizeVertical,
+                Some(5 | 7) => egui::CursorIcon::ResizeHorizontal,
+                // 8: the whole box
+                Some(_) => egui::CursorIcon::Move,
+                None if inside(hq) && !rotating => egui::CursorIcon::Move,
+                // Lightroom style, in the dimmed area over the image: a drag draws a new box
+                None if lr && map.rect.contains(hq) => egui::CursorIcon::Crosshair,
+                // a drag here rotates: no system cursor shows that, so draw a curved double arrow
+                None => {
+                    rotate_cursor(ui, hq, rotate_cursor_turn(&pts, hq, inside(hq)));
+                    egui::CursorIcon::None
+                }
             }
         };
         ui.ctx().set_cursor_icon(cursor);
@@ -1592,7 +1648,18 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
         let d = app.session.develop_of(id).unwrap_or_default();
         app.gesture = Some(match handles.iter().position(|h| h.distance(q) < 12.0) {
             Some(h) => Gesture::CropHandle { handle: h as u8, start: d.crop.geometry.rect, angle: d.crop.geometry.angle },
-            None if inside(q) => Gesture::CropHandle { handle: 8, start: d.crop.geometry.rect, angle: d.crop.geometry.angle },
+            None if inside(q) => {
+                if lr {
+                    Gesture::CropPan { start_rect: d.crop.geometry.rect }
+                } else {
+                    Gesture::CropHandle { handle: 8, start: d.crop.geometry.rect, angle: d.crop.geometry.angle }
+                }
+            }
+            // Lightroom style, over the dimmed image: draw a new box from the press point
+            None if lr && map.rect.contains(q) => {
+                let origin = ui.input(|i| i.pointer.press_origin()).unwrap_or(q);
+                Gesture::CropNewBox { a0: to_straight(map.norm(origin), d.crop.geometry.angle, frame) }
+            }
             None => {
                 let c = map.screen(Point::new(0.5, 0.5));
                 Gesture::CropRotate { start_angle: d.crop.geometry.angle, a0: (q - c).angle() }
@@ -1614,6 +1681,24 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
                     "crop.drag",
                     json!({"handle": handle, "from": [orig.x, orig.y], "to": [n.x, n.y], "start": [start.x0, start.y0, start.x1, start.y1], "keepRatio": keep_ratio}),
                 );
+            }
+            Some(Gesture::CropPan { start_rect }) => {
+                // The frame is fixed: the applied rect moves opposite the pointer (the same `move`
+                // drag with the delta inverted), and the display slides by the applied delta, so the
+                // photo follows the pointer under the frame.
+                let n = to_straight(map.norm(q), angle, frame);
+                let orig = ui.input(|i| i.pointer.press_origin()).map(|q0| to_straight(map.norm(q0), angle, frame)).unwrap_or(n);
+                let inv = Point::new(2.0 * orig.x - n.x, 2.0 * orig.y - n.y);
+                let _ = app.run(
+                    "crop.drag",
+                    json!({"handle": "move", "from": [orig.x, orig.y], "to": [inv.x, inv.y], "start": [start_rect.x0, start_rect.y0, start_rect.x1, start_rect.y1], "keepRatio": false}),
+                );
+            }
+            Some(Gesture::CropNewBox { a0 }) => {
+                let n = to_straight(map.norm(q), angle, frame);
+                // Shift holds the drawn proportions for this gesture (the Lock toggle is untouched)
+                let keep_ratio = ui.input(|i| i.modifiers.shift);
+                let _ = app.run("crop.box", json!({"from": [a0.x, a0.y], "to": [n.x, n.y], "keepRatio": keep_ratio}));
             }
             Some(Gesture::CropRotate { start_angle, a0 }) => {
                 let c = map.screen(Point::new(0.5, 0.5));
@@ -1815,6 +1900,35 @@ fn to_straight(n: Point, angle: f64, frame: &Frame) -> Point {
     let px = Point::new(n.x * w, n.y * h);
     let r = Affine::rotate_about(angle.to_radians(), Point::new(w / 2.0, h / 2.0)).apply(px);
     Point::new(r.x / w, r.y / h)
+}
+
+/// The bounding box on screen of the photo's rectangle turned by `angle` about its centre (the
+/// Lightroom-style crop's dimmed area: the turned image may reach past the frame into the margin).
+fn rotated_image_bbox(r: Rect, angle: f64) -> Rect {
+    if angle == 0.0 {
+        return r;
+    }
+    let (s, c) = angle.to_radians().sin_cos();
+    let (s, c) = (s as f32, c as f32);
+    let (hw, hh) = (r.width() / 2.0, r.height() / 2.0);
+    let (ex, ey) = (hw * c.abs() + hh * s.abs(), hw * s.abs() + hh * c.abs());
+    Rect::from_center_size(r.center(), vec2(ex * 2.0, ey * 2.0))
+}
+
+/// The photo's texture turned by `angle` about its centre (the Lightroom-style crop: the image
+/// turns, the frame around it stays put). The corners may reach past `r`; the caller clips.
+fn draw_rotated_image(p: &egui::Painter, tex: egui::TextureId, r: Rect, angle: f64) {
+    let c = r.center();
+    let xf = Affine::rotate_about(angle.to_radians(), Point::new(c.x as f64, c.y as f64));
+    let corners = [r.left_top(), r.right_top(), r.right_bottom(), r.left_bottom()];
+    let uvs = [pos2(0.0, 0.0), pos2(1.0, 0.0), pos2(1.0, 1.0), pos2(0.0, 1.0)];
+    let mut mesh = egui::Mesh::with_texture(tex);
+    for (q, uv) in corners.into_iter().zip(uvs) {
+        let m = xf.apply(Point::new(f64::from(q.x), f64::from(q.y)));
+        mesh.vertices.push(egui::epaint::Vertex { pos: pos2(m.x as f32, m.y as f32), uv, color: Color32::WHITE });
+    }
+    mesh.indices.extend([0, 1, 2, 0, 2, 3]);
+    p.add(egui::Shape::mesh(mesh));
 }
 
 /// A crop box's corners (top-left, top-right, bottom-right, bottom-left of the unflipped photo)

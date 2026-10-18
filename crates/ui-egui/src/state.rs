@@ -394,6 +394,11 @@ pub struct AppSettings {
     /// View ▸ Zoom to Focus Point: Toggle Zoom (Z) centres the zoomed view on the camera's focus point
     /// when the photo has one (`view.zoomToFocus`).
     pub zoom_to_focus: bool,
+    /// The crop tool's canvas interaction ("lightroom" | "photoshop"): Lightroom keeps the frame
+    /// fixed and pans / rotates the image under it and draws a new box in the dimmed area;
+    /// Photoshop moves the box over a still image (the tool's earlier behaviour). An unknown
+    /// saved value is Lightroom.
+    pub crop_interaction_style: String,
 }
 
 impl Default for AppSettings {
@@ -424,6 +429,7 @@ impl Default for AppSettings {
             keyword_chips: KeywordChips::default(),
             focus_point: false,
             zoom_to_focus: true,
+            crop_interaction_style: "lightroom".to_string(),
         }
     }
 }
@@ -432,6 +438,12 @@ impl AppSettings {
     /// The active keymap profile; an unknown saved `keymap_profile` is the default keymap.
     pub fn profile(&self) -> crate::keymap_profiles::KeyProfile {
         crate::keymap_profiles::KeyProfile::parse_id(&self.keymap_profile)
+    }
+
+    /// The crop canvas follows Lightroom (the frame stays put; the image pans and rotates under
+    /// it, and a drag in the dimmed area draws a new box) unless the saved style is "photoshop".
+    pub fn crop_lightroom(&self) -> bool {
+        self.crop_interaction_style != "photoshop"
     }
 }
 
