@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (integration batch 36: slideshow module, print-ready PDF fixes, local adjustment presets, Layout Image loupe overlay, Delete in an album removes from it, new languages Czech, Polish, Italian-ready catalogs; many rows' notes updated by their PRs) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-17 · **Change:** minor (LR-CROP-INTERACTION-STYLE, LR-GUIDED-SELECT and LR-GUIDED-DELETE land with their tests — status ✅; earlier: Classic keymap profile: the KEYC-* row notes now cite [classic-keymap](classic-keymap.md), `keymap_profiles.rs` and the `mod classic` tests — statuses unchanged; integration batch 36: slideshow module, print-ready PDF fixes, local adjustment presets, Layout Image loupe overlay, Delete in an album removes from it, new languages Czech, Polish, Italian-ready catalogs) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -33,7 +33,7 @@ cited here still exists. Formerly docs/parity.md.
 | E. Metadata (META) | 5 | 1 | 0 | 0 | 2/2 (100%) | 2/2 (100%) |
 | F. Edit panel — global adjustments (EDIT) | 44 | 2 | 3 | 1 | 28/28 (100%) | 13/14 (93%) |
 | G. Profiles (PROF) | 7 | 1 | 3 | 0 | 3/4 (75%) | 3/3 (100%) |
-| H. Crop & rotate (CROP) | 9 | 0 | 0 | 1 | 6/6 (100%) | 3/3 (100%) |
+| H. Crop & rotate (CROP) | 12 | 0 | 0 | 1 | 9/9 (100%) | 3/3 (100%) |
 | I. Remove / healing (REM) | 8 | 1 | 2 | 2 | 4/4 (100%) | 2/3 (67%) |
 | J. Red eye (EYE) | 2 | 0 | 0 | 0 | — | 1/1 (100%) |
 | K. Masking (MASK) | 15 | 5 | 5 | 0 | 7/8 (88%) | 7/7 (100%) |
@@ -53,9 +53,9 @@ cited here still exists. Formerly docs/parity.md.
 | Y. Menus | 84 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 78 | 4 | 2 | 1 | 49/52 (94%) | 24/26 (92%) |
 | Lightroom Classic extras | 40 | 23 | 23 | 8 | — | 24/26 (92%) |
-| **Total** | 419 | 61 | 59 | 35 | 194/201 (97%) | 148/161 (92%) |
+| **Total** | 422 | 61 | 59 | 35 | 197/204 (97%) | 148/161 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **83.4%** of 539 in-scope rows — P0 98.3% of 201 · P1 95.0% of 161 · P2 55.7% of 176.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **83.5%** of 542 in-scope rows — P0 98.3% of 204 · P1 95.0% of 161 · P2 55.7% of 176.
 <!-- /parity:summary -->
 
 ## Top gaps and shortcut notes
@@ -259,6 +259,9 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 | LR-CROP-OVERLAY | Crop overlays | P1 | ✅ | `cmd:view.cropOverlay`, `cmd:view.cropOverlayOrientation`, `crates/ui-egui/src/panels/crop_overlay.rs` | thirds, grid, golden ratio, diagonal, triangle, golden spiral (mirrored with ⇧O while cropping); no aspect-ratio overlays |
 | LR-CROP-ZOOM | Zoom while cropping | P1 | ✅ | `cmd:view.zoom100`, `cmd:view.zoomIn`, `crates/ui-egui/src/panels/detail.rs` | zoom levels apply with the crop tool open (verified: 100% shows the photo at native size with the crop frame) |
 | LR-CROP-GENEXPAND | Generative expand | OOS | 🚫 | | |
+| LR-CROP-INTERACTION-STYLE | Crop interaction style (Lightroom vs Photoshop) | P0 | ✅ | `ui.set` (`settings.cropInteractionStyle`), `crates/ui-egui/src/state.rs` (`crop_lightroom`), `crates/ui-egui/src/panels/right.rs`, `crates/ui-egui/src/panels/detail.rs`, `crates/ui-egui/src/tests_crop_lr.rs` | default is Lightroom: the frame stays put while the photo pans / rotates under it and a drag in the dimmed area draws a new box (`crop.box`); Photoshop moves the box over the still photo (the tool's earlier behaviour); the style picker (Crop panel ▸ Crop section ▸ Style: Lightroom | Photoshop) lives there and an unknown saved value falls back to Lightroom; tested in `tests_crop_lr` 8/8 |
+| LR-GUIDED-SELECT | Guide selection in Guided Upright mode | P0 | ✅ | `cmd:tool.guidedUpright`, `cmd:geometry.guides`, `crates/ui-egui/src/panels/detail.rs`, `crates/ui-egui/src/state.rs` (`selected_guide`), `crates/ui-egui/src/tests_guided_guides.rs` | a click near a guide selects it (`selected_guide = Some((photo id, index))`), drawing a new guide or clicking away clears it; tested in `tests_guided_guides` 5/5 |
+| LR-GUIDED-DELETE | Delete removes the selected guide alone | P0 | ✅ | `cmd:photo.delete`, `crates/ui-egui/src/shortcuts.rs`, `crates/ui-egui/src/tests_guided_guides.rs` | with the Guided Upright tool open (`RightPanel::Crop && tool == "guidedUpright"`), Delete / Backspace removes only the selected guide and clears the selection; with nothing selected it removes nothing (the photo itself is never deleted while the tool is open); tested in `tests_guided_guides` |
 
 ## I. Remove / healing (REM)
 
@@ -772,16 +775,16 @@ From `08-lightroom-classic-extras.md` (Classic-only features) and part 2 of `06-
 | LRC-WEB-IMAGEINFO | Web gallery image info | OOS | 🚫 | | |
 | LRC-WEB-OUTPUT | Web gallery output | OOS | 🚫 | | |
 | LRC-WEB-UPLOAD | Web gallery upload | OOS | 🚫 | | |
-| KEYC-PANELS | Classic panel keys (Tab, ⇧Tab, T, F5–F8, solo) | P2 | ⬜ | | solo itself (⌥-click a header, Solo Mode) is done: see LR-EDIT-SECTION-SOLO |
+| KEYC-PANELS | Classic panel keys (Tab, ⇧Tab, T, F5–F8, solo) | P2 | ⬜ | | F6 (filmstrip) and F7 (left panel) are bound (`ALIASES`); solo itself (⌥-click a header, Solo Mode) is done: see LR-EDIT-SECTION-SOLO; Tab, ⇧Tab, T, F5 and F8 remain |
 | KEYC-MODULES | Classic module switching (⌘⌥1–7) | P2 | 🚫 | | no modules in LightCraft |
-| KEYC-VIEWS | Classic view keys (E, G, C, N, L, F, I, ⇧R, ⌘⌥0) | P2 | 🟡 | `cmd:view.photoGrid`, `cmd:view.zoom100` | G works; E opens Edit (not loupe); no compare/survey/lights-out/screen modes |
+| KEYC-VIEWS | Classic view keys (E, G, C, N, L, F, I, ⇧R, ⌘⌥0) | P2 | 🟡 | `cmd:view.photoGrid`, `cmd:view.zoom100`, `cmd:app.setKeymapProfile`, `crates/ui-egui/src/keymap_profiles.rs` | G works (grid toggle); with the Classic profile ([classic-keymap](classic-keymap.md)) E opens the Loupe, D the Edit panel, C compare, L lights out, I info overlay, O people (grids) — all end-to-end tested (`crates/ui-egui/src/tests_keymap.rs`, `mod classic`); Survey N, F full screen and ⇧H already worked; ⇧R reference view and ⌘⌥0 screen modes remain unbound |
 | KEYC-SECONDWINDOW | Classic secondary-window keys | P2 | ⬜ | | |
-| KEYC-CATALOG | Classic photo/catalog keys (⇧⌘I, ⌘', ⌘R, F2, ⌫, ⇧⌘E…) | P2 | ✅ | `cmd:library.import`, `cmd:photo.delete`, `cmd:photo.virtualCopy`, `cmd:app.showInFinder`, `cmd:dialog.rename`, `cmd:photo.editInExternal` | ⇧⌘I add, ⌘' virtual copy, ⌘R show in Finder, F2 rename, ⌫ delete, ⇧⌘E external editor |
-| KEYC-COMPARE | Classic grid/compare keys (Z, Home/End, =/−, ⌘⇧D, S…) | P2 | 🟡 | `cmd:view.zoomToggle`, `cmd:view.thumbSizeUp`, `cmd:view.thumbSizeDown`, `crates/ui-egui/src/tests_zoom_keys.rs`, `cmd:library.select`, `crates/ui-egui/src/shortcuts.rs`, `crates/ui-egui/src/tests_keymap.rs` (`home_and_end_select_the_ends_of_the_grid`, `shift_arrows_extend_the_grid_selection`) | Z toggles zoom; `=` / `-` (and `+`) step the grid thumbnail size by 30 pt within the bottom-bar slider's 90–480 range in Photo Grid, Square Grid and People (nothing in Detail, Compare, Survey or Reference; a text field keeps the keys; ⌘= / ⌘− still zoom); Home / End make the first / last photo of the view the active, selected one and ⇧← / ⇧→ add the previous / next photo to the selection (the added photo becomes active; nothing is ever removed; at either end nothing happens), in Photo Grid and Square Grid only: they wait in the other views, in the full-screen preview, while a text field or a dialog has the keyboard, and when the user gave the key to a command; no compare, stacks keys |
-| KEYC-RATING | Classic rating/flag keys (1–5, ⇧1–5, 6–9, P, X, U, ⇧X, ⇧U, `[` `]`, \`, ⌘↑ ⌘↓) | P2 | 🟡 | `cmd:photo.rate`, `cmd:photo.pick`, `cmd:photo.flag`, `cmd:photo.cycleFlag`, `cmd:photo.increaseFlag`, `cmd:photo.decreaseFlag` | 0–5 / Shift+0–5 and 6–9 / Shift+6–9; P/X/U, Shift+X/U and grid Shift+P work; ` (backtick) cycles each selected photo's flag unflagged → pick → reject → unflagged and ⌘↑ / ⌘↓ (Ctrl on Windows/Linux) raise / lower it (reject < unflagged < pick, clamped); one undo step, Compare/Survey act on the active photo, Auto Advance follows; tests cover batch/undo, active Compare candidate and text focus. Missing: Shift+P outside grids (Presets), filter-bar keys |
-| KEYC-COLLECTIONS | Classic collection keys (⌘N, B…) | P2 | 🟡 | `cmd:dialog.newAlbum` | ⌘N new album; no quick collection |
-| KEYC-METADATA | Classic keyword/metadata keys (⌘K, ⌘S, ⌘⌥⇧C/V…) | P2 | 🟡 | `cmd:photo.saveMetadataToFile` | ⌘S saves metadata; no keyword sets, metadata copy/paste |
-| KEYC-DEVELOP | Classic develop keys (V, ⌘U, ⇧⌘U, R, Q, K, M, ⇧M, ⇧W, ⇧J, ⇧Q…) | P2 | 🟡 | `cmd:develop.treatment`, `cmd:develop.reset`, `cmd:crop.reset` | V, ⇧⌘R, ⌥⌘R, W, J, Y, ⇧Y, \ match; R/K/M/⇧M differ; no Classic keymap layer |
+| KEYC-CATALOG | Classic photo/catalog keys (⇧⌘I, ⌘', ⌘R, F2, ⌫, ⇧⌘E…) | P2 | ✅ | `cmd:library.import`, `cmd:photo.delete`, `cmd:photo.virtualCopy`, `cmd:app.showInFinder`, `cmd:dialog.rename`, `cmd:photo.editInExternal` | ⇧⌘I add, ⌘' virtual copy, ⌘R show in Finder, F2 rename, ⌫ delete, ⇧⌘E external editor (the Classic profile gives Edit in PhotoCraft ⌘E, as Adobe's Edit in Photoshop — [classic-keymap](classic-keymap.md)) |
+| KEYC-COMPARE | Classic grid/compare keys (Z, Home/End, =/−, ⌘⇧D, S…) | P2 | 🟡 | `cmd:view.zoomToggle`, `cmd:view.thumbSizeUp`, `cmd:view.thumbSizeDown`, `crates/ui-egui/src/tests_zoom_keys.rs`, `cmd:library.select`, `crates/ui-egui/src/shortcuts.rs`, `crates/ui-egui/src/tests_keymap.rs` (`home_and_end_select_the_ends_of_the_grid`, `shift_arrows_extend_the_grid_selection`) | Z toggles zoom; `=` / `-` (and `+`) step the grid thumbnail size by 30 pt within the bottom-bar slider's 90–480 range in Photo Grid, Square Grid and People (nothing in Detail, Compare, Survey or Reference; a text field keeps the keys; ⌘= / ⌘− still zoom); Home / End make the first / last photo of the view the active, selected one and ⇧← / ⇧→ add the previous / next photo to the selection (the added photo becomes active; nothing is ever removed; at either end nothing happens), in Photo Grid and Square Grid only: they wait in the other views, in the full-screen preview, while a text field or a dialog has the keyboard, and when the user gave the key to a command; Compare opens on C and ⇧[ / ⇧] move the photo up / down its stack in the grids under the Classic profile ([classic-keymap](classic-keymap.md); S already toggles a stack there) |
+| KEYC-RATING | Classic rating/flag keys (1–5, ⇧1–5, 6–9, P, X, U, ⇧X, ⇧U, `[` `]`, \`, ⌘↑ ⌘↓) | P2 | 🟡 | `cmd:photo.rate`, `cmd:photo.pick`, `cmd:photo.flag`, `cmd:photo.cycleFlag`, `cmd:photo.increaseFlag`, `cmd:photo.decreaseFlag` | 0–5 / Shift+0–5 and 6–9 / Shift+6–9; P/X/U, Shift+X/U and grid Shift+P work; ` (backtick) cycles each selected photo's flag unflagged → pick → reject → unflagged and ⌘↑ / ⌘↓ (Ctrl on Windows/Linux) raise / lower it (reject < unflagged < pick, clamped); one undo step, Compare/Survey act on the active photo, Auto Advance follows; tests cover batch/undo, active Compare candidate and text focus, plus the Classic profile's ⇧P in every view (`mod classic`, `shift_p_flags_and_advances_in_every_view`). Missing: ⌘L toggle filters |
+| KEYC-COLLECTIONS | Classic collection keys (⌘N, B…) | P2 | 🟡 | `cmd:dialog.newAlbum` | ⌘N new album (Classic profile: ⌘N opens New Album in the grids and Create Version with an edit tool open, per [classic-keymap](classic-keymap.md)); B quick collection in the grids works: see LR-LIB-QUICKCOLL; the row's other Classic collection keys not swept individually |
+| KEYC-METADATA | Classic keyword/metadata keys (⌘K, ⌘S, ⌘⌥⇧C/V…) | P2 | 🟡 | `cmd:photo.saveMetadataToFile` | ⌘S saves metadata; no keyword sets, metadata copy/paste; ⌘K (add keywords) has no command and the Classic profile leaves the Keywords panel keyless — see [classic-keymap](classic-keymap.md) |
+| KEYC-DEVELOP | Classic develop keys (V, ⌘U, ⇧⌘U, R, Q, K, M, ⇧M, ⇧W, ⇧J, ⇧Q…) | P2 | 🟡 | `cmd:develop.treatment`, `cmd:develop.reset`, `cmd:crop.reset`, `cmd:app.setKeymapProfile`, `crates/ui-egui/src/keymap_profiles.rs` | V, ⇧⌘R, ⌥⌘R, W, J, Y, ⇧Y, \ already match; under the Classic profile ([classic-keymap](classic-keymap.md)): R crop, Q spots, K brush, M graduated, ⇧M radial, ⇧W masking, ⇧T guided upright, ⌘U auto tone, ⌘⇧S sync settings, ⌥⇧⌘M match exposure, ⌥⇧⌘A auto sync, ⌥⌘V paste from previous (gates tested in `crates/ui-egui/src/tests_keymap.rs`); ⇧⌘U, ⇧J, ⇧Q and the rest of the row not swept |
 | KEYC-MODULE-OUTPUT | Book / slideshow / print / map / web keys | P2 | ⬜ | | modules not implemented |
 | KEYC-HELP | Classic help keys (⌘/, F1) | P2 | 🟡 | `cmd:app.shortcuts` | ⌘/ only |
 
@@ -797,6 +800,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-17 | minor | LR-CROP-INTERACTION-STYLE, LR-GUIDED-SELECT, LR-GUIDED-DELETE: the crop canvas follows Lightroom by default (frame fixed, photo pans / rotates under it, dimmed-area drag draws a new box — `cropInteractionStyle` / `crop_lightroom()`, Photoshop style kept as an option) and Guided Upright guides can be selected and deleted one by one (`selected_guide`, Delete with the tool open); status 🟡/unknown → ✅ (`tests_crop_lr` 8/8, `tests_guided_guides` 5/5) |
 | 2026-10-12 | minor | LR-EDIT-OPTICS-PROFILE: Sony ARW shading, CA and distortion tables decoded with settings and provenance (raw IFD, `SR2SubIFD` fallback); applied corrections unchanged (ILCE-7RM4A and ILCE-7RM6 distortion); status unchanged (🟡) |
 | 2026-10-14 | minor | LR-IMP-CAMERA-COVERAGE: Camera-coverage sweep (#1327): 30 models verified on 40 CC0 files (coverage.py 515 → 545 verified); sensor verification does not establish colour parity (#1277); status unchanged (🟡) |
 | 2026-10-13 | minor | LR-MERGE-PANO: a panorama's DNG takes its `AsShotNeutral` from the median of its frames' vendor white-balance multipliers (CR2, NEF, ARW…) instead of the first frame's tags, and frames now carry the multipliers (issue #1144); status unchanged (✅) |
