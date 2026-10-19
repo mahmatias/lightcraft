@@ -1644,19 +1644,6 @@ fn crop_overlay(
         guided_overlay(app, ui, resp, map, frame, d, id);
         return;
     }
-    if app.ui.tool == "straighten" {
-        straighten_overlay(app, ui, resp, false);
-        return;
-    }
-    // hold ⌘ and drag: draw a straighten line without leaving the crop tool
-    let cmd_drag = resp.drag_started() && ui.input(|i| i.modifiers.command);
-    if cmd_drag || matches!(app.gesture, Some(Gesture::StraightenLine { .. })) {
-        straighten_overlay(app, ui, resp, true);
-        return;
-    }
-    if resp.hovered() && ui.input(|i| i.modifiers.command) {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
-    }
     let lr = app.ui.settings.crop_lightroom();
     let angle = d.crop.geometry.angle;
     let r = d.crop.geometry.rect;
@@ -1668,6 +1655,33 @@ fn crop_overlay(
     } else {
         frame_crop_quad(d, frame).iter().map(|q| map.screen(*q)).collect()
     };
+    // hold ⌘ and drag: draw a straighten line without leaving the crop tool
+    let cmd_drag = resp.drag_started() && ui.input(|i| i.modifiers.command);
+    // denser guides while straightening — a rotate drag or a level line drawn by hand: judge the
+    // level against a 4×4 grid inside the selection (the overlay guides are not on by default)
+    let straighten_active =
+        app.ui.tool == "straighten" || cmd_drag || matches!(app.gesture, Some(Gesture::StraightenLine { .. } | Gesture::CropRotate { .. }));
+    if straighten_active && pts.len() == 4 {
+        let p = ui.painter();
+        let at = |(u, v): (f32, f32)| pts[0] + (pts[1] - pts[0]) * u + (pts[3] - pts[0]) * v;
+        let g = Stroke::new(1.0, Color32::from_white_alpha(200));
+        for t in [0.25, 0.5, 0.75] {
+            p.add(egui::Shape::line(vec![at((t, 0.0)), at((t, 1.0))], g));
+            p.add(egui::Shape::line(vec![at((0.0, t)), at((1.0, t))], g));
+        }
+        register(ui.ctx(), "cropStraightenGrid", Rect::from_two_pos(pts[0], pts[2]));
+    }
+    if app.ui.tool == "straighten" {
+        straighten_overlay(app, ui, resp, false);
+        return;
+    }
+    if cmd_drag || matches!(app.gesture, Some(Gesture::StraightenLine { .. })) {
+        straighten_overlay(app, ui, resp, true);
+        return;
+    }
+    if resp.hovered() && ui.input(|i| i.modifiers.command) {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+    }
     let p = ui.painter();
     // darken outside the crop: around the rotated box in Photoshop; in Lightroom around the
     // axis-aligned one, over the turned image's bounding box (the corners reach into the margin)
@@ -1736,6 +1750,11 @@ fn crop_overlay(
                 // 8: the whole box
                 Some(_) => egui::CursorIcon::Move,
                 None if inside(hq) && !rotating => egui::CursorIcon::Move,
+                // Lightroom style: the strip around the box is the straighten zone (a drag rotates)
+                None if lr && dist_to_quad(&pts, hq) < ROTATE_BAND => {
+                    rotate_cursor(ui, hq, rotate_cursor_turn(&pts, hq, inside(hq)));
+                    egui::CursorIcon::None
+                }
                 // Lightroom style, in the dimmed area over the image: a drag draws a new box
                 None if lr && map.rect.contains(hq) => egui::CursorIcon::Crosshair,
                 // a drag here rotates: no system cursor shows that, so draw a curved double arrow
@@ -1771,6 +1790,10 @@ fn crop_overlay(
             return;
         }
         let d = app.session.develop_of(id).unwrap_or_default();
+        let rotate = || {
+            let c = map.screen(Point::new(0.5, 0.5));
+            Gesture::CropRotate { start_angle: d.crop.geometry.angle, a0: (q - c).angle() }
+        };
         app.gesture = Some(match handles.iter().position(|h| h.distance(q) < 12.0) {
             Some(h) => Gesture::CropHandle { handle: h as u8, start: d.crop.geometry.rect, angle: d.crop.geometry.angle },
             None if inside(q) => {
@@ -1780,15 +1803,15 @@ fn crop_overlay(
                     Gesture::CropHandle { handle: 8, start: d.crop.geometry.rect, angle: d.crop.geometry.angle }
                 }
             }
+            // Lightroom style: a press in the strip around the box rotates — the straighten zone
+            // sits next to the selection, not only in the margin beyond the photo
+            None if lr && dist_to_quad(&pts, q) < ROTATE_BAND => rotate(),
             // Lightroom style, over the dimmed image: draw a new box from the press point
             None if lr && map.rect.contains(q) => {
                 let origin = ui.input(|i| i.pointer.press_origin()).unwrap_or(q);
                 Gesture::CropNewBox { a0: to_straight(map.norm(origin), d.crop.geometry.angle, frame) }
             }
-            None => {
-                let c = map.screen(Point::new(0.5, 0.5));
-                Gesture::CropRotate { start_angle: d.crop.geometry.angle, a0: (q - c).angle() }
-            }
+            None => rotate(),
         });
     }
     if resp.dragged()
@@ -1858,6 +1881,18 @@ const CROP_HANDLE_NAMES: [&str; 9] = [
     "Crop left edge",
     "Crop box",
 ];
+
+/// How far from the crop box's outline (screen px) a press still belongs to the straighten zone:
+/// the strip just outside the selection rotates, as the rotate glyph shows.
+const ROTATE_BAND: f32 = 40.0;
+
+/// Distance from `q` to the closed crop outline `pts` (screen px): where a press rotates.
+fn dist_to_quad(pts: &[Pos2], q: Pos2) -> f32 {
+    if pts.len() < 4 {
+        return f32::INFINITY;
+    }
+    (0..4).map(|i| point_segment_dist(q, pts[i], pts[(i + 1) % 4])).fold(f32::INFINITY, f32::min)
+}
 
 /// Keyboard stand-ins for the crop handles: an arrow press drags the focused one by a step (one
 /// undo step each), as a pointer drag from its place would. Return applies the crop. True when the
