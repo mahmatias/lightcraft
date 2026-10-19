@@ -73,6 +73,8 @@ pub fn shortcut_of<'a>(profile: KeyProfile, keymap: &'a Keymap, id: &str) -> Opt
 /// the X pair by the Crop panel, the Classic pairs by whether an edit tool is open.
 pub const CONTEXTUAL: &[(&str, &str)] = &[
     ("photo.reject", "crop.rotateAspect"),
+    // A: Visualize Spots everywhere, the aspect lock under the Crop panel
+    ("view.visualizeSpots", "crop.lockAspect"),
     ("view.people", "view.maskOverlay"),
     ("dialog.newAlbum", "version.create"),
     ("dialog.newFolder", "dialog.createPreset"),
@@ -659,6 +661,13 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             if f == "crop.rotateAspect" && app.ui.right != crate::state::RightPanel::Crop {
                 continue;
             }
+            // A is both Visualize Spots and the crop aspect lock: each key only in its own context
+            if f == "view.visualizeSpots" && app.ui.right == crate::state::RightPanel::Crop {
+                continue;
+            }
+            if f == "crop.lockAspect" && app.ui.right != crate::state::RightPanel::Crop {
+                continue;
+            }
             // / refreshes the selected spot's source in the Remove tool (the filmstrip elsewhere)
             if f == "view.filmstrip" && app.ui.right == crate::state::RightPanel::Remove && app.session.active_spot.is_some() {
                 let _ = app.run("spot.refreshSource", json!({}));
@@ -669,12 +678,11 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                 let _ = app.run("view.maskOverlayColor", json!({}));
                 continue;
             }
-            // while cropping: O cycles the guides, Shift+O their orientation, A locks the aspect
+            // while cropping: O cycles the guides, Shift+O their orientation
             if app.ui.right == crate::state::RightPanel::Crop {
                 let crop_key = match f.as_str() {
                     "view.maskOverlay" => Some(("view.cropOverlay", json!({}))),
                     "view.cropOverlay" => Some(("view.cropOverlayOrientation", json!({}))),
-                    "view.visualizeSpots" => Some(("crop.aspect", json!({"aspect": "toggle"}))),
                     _ => None,
                 };
                 if let Some((cmd, p)) = crop_key {
