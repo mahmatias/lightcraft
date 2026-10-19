@@ -1712,9 +1712,18 @@ fn crop_overlay(
     if crop_keys(app, ui, map, &handles, &pts, d, frame) {
         return;
     }
+    // Pointer to the crop's straightened frame: Lightroom draws the image turned and slid under a
+    // fixed axis-aligned box, so the pointer only slides by the pan (rotating again would skew it);
+    // Photoshop turns the box itself, so the pointer is unturned the way the quad is turned.
+    let to_crop_space = |q: Pos2, angle: f64| {
+        if lr {
+            map.norm(q - pan)
+        } else {
+            to_straight(map.norm(q), angle, frame)
+        }
+    };
     let inside = |q: Pos2| {
-        let n = map.norm(q);
-        let s = to_straight(n, d.crop.geometry.angle, frame);
+        let s = to_crop_space(q, d.crop.geometry.angle);
         d.crop.geometry.rect.contains(Point::new(s.x.clamp(-1.0, 2.0), s.y))
     };
     // a crop drag cut short (the tool closed before the release) leaves its gesture behind: with no
@@ -1809,7 +1818,7 @@ fn crop_overlay(
             // Lightroom style, over the dimmed image: draw a new box from the press point
             None if lr && map.rect.contains(q) => {
                 let origin = ui.input(|i| i.pointer.press_origin()).unwrap_or(q);
-                Gesture::CropNewBox { a0: to_straight(map.norm(origin), d.crop.geometry.angle, frame) }
+                Gesture::CropNewBox { a0: to_crop_space(origin, d.crop.geometry.angle) }
             }
             None => rotate(),
         });
@@ -1821,8 +1830,8 @@ fn crop_overlay(
             Some(Gesture::CropHandle { handle, start, angle }) => {
                 // The crop model decides what the drag does (anchor, aspect lock, image bounds): see
                 // `lightcraft_geom::drag_crop`; the UI only reports where the pointer started and is.
-                let n = to_straight(map.norm(q), angle, frame);
-                let orig = ui.input(|i| i.pointer.press_origin()).map(|q0| to_straight(map.norm(q0), angle, frame)).unwrap_or(n);
+                let n = to_crop_space(q, angle);
+                let orig = ui.input(|i| i.pointer.press_origin()).map(|q0| to_crop_space(q0, angle)).unwrap_or(n);
                 // Shift keeps the current proportions for this drag only; the Lock toggle is untouched.
                 let keep_ratio = ui.input(|i| i.modifiers.shift);
                 let _ = app.run(
@@ -1834,8 +1843,8 @@ fn crop_overlay(
                 // The frame is fixed: the applied rect moves opposite the pointer (the same `move`
                 // drag with the delta inverted), and the display slides by the applied delta, so the
                 // photo follows the pointer under the frame.
-                let n = to_straight(map.norm(q), angle, frame);
-                let orig = ui.input(|i| i.pointer.press_origin()).map(|q0| to_straight(map.norm(q0), angle, frame)).unwrap_or(n);
+                let n = to_crop_space(q, angle);
+                let orig = ui.input(|i| i.pointer.press_origin()).map(|q0| to_crop_space(q0, angle)).unwrap_or(n);
                 let inv = Point::new(2.0 * orig.x - n.x, 2.0 * orig.y - n.y);
                 let _ = app.run(
                     "crop.drag",
@@ -1843,7 +1852,7 @@ fn crop_overlay(
                 );
             }
             Some(Gesture::CropNewBox { a0 }) => {
-                let n = to_straight(map.norm(q), angle, frame);
+                let n = to_crop_space(q, angle);
                 // Shift holds the drawn proportions for this gesture (the Lock toggle is untouched)
                 let keep_ratio = ui.input(|i| i.modifiers.shift);
                 let _ = app.run("crop.box", json!({"from": [a0.x, a0.y], "to": [n.x, n.y], "keepRatio": keep_ratio}));

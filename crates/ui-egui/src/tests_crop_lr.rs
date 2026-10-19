@@ -1,7 +1,7 @@
-//! Headless tests of the Lightroom-style crop interaction (`cropInteractionStyle: "lightroom"`,
-//! the default): inside the box a drag pans the photo under the fixed frame, in the dimmed area
-//! over the image it draws a new box, in the margin it rotates. The Photoshop style keeps the old
-//! behaviour (the frame moves under a still pointer).
+//! Headless tests of the Lightroom-style crop interaction (opted in with
+//! `cropInteractionStyle: "lightroom"`; the default is Photoshop): inside the box a drag pans the
+//! photo under the fixed frame, in the dimmed area over the image it draws a new box, in the margin
+//! it rotates. The Photoshop style keeps the old behaviour (the frame moves under a still pointer).
 
 use std::time::Duration;
 
@@ -123,6 +123,30 @@ fn dragging_in_the_dimmed_area_draws_a_new_box() {
     let b = rect(&h);
     assert!((b.x0 - 0.75).abs() < 1e-3 && (b.x1 - 0.9).abs() < 1e-3, "drawn from the press point: {b:?}");
     assert!((b.y0 - 0.7).abs() < 1e-3 && (b.y1 - 0.9).abs() < 1e-3, "and to the release point");
+}
+
+/// A new box drawn while the photo is turned still lands under the pointer: the Lightroom pointer
+/// coordinates slide by the pan only — rotating them again (the Photoshop path) would skew the
+/// box away from where it was drawn.
+#[test]
+fn drawing_a_new_box_at_an_angle_follows_the_pointer() {
+    let mut h = crop_tool_lr();
+    let r = h.request("engine.execute", json!({"command": "develop.set", "params": {"control": "crop.angle", "value": 12.0}}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("engine.execute", json!({"command": "crop.set", "params": {"rect": [0.15, 0.15, 0.45, 0.45]}}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert!(angle(&h) != 0.0, "the photo is turned");
+    let r = h.request(
+        "ui.pointer",
+        json!({"events": [{"kind": "down", "x": 0.55, "y": 0.7}, {"kind": "drag", "x": 0.6, "y": 0.75}, {"kind": "drag", "x": 0.65, "y": 0.8}]}),
+        T,
+    );
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    let b = rect(&h);
+    assert!((b.x0 - 0.55).abs() < 1e-3 && (b.x1 - 0.65).abs() < 1e-3, "drawn from the press point despite the angle: {b:?}");
+    assert!((b.y0 - 0.7).abs() < 1e-3 && (b.y1 - 0.8).abs() < 1e-3, "and to the release point: {b:?}");
 }
 
 /// In the margin beside the photo a drag rotates, as in both styles; the angle readout follows.

@@ -334,6 +334,10 @@ pub fn crop_box(anchor: Point, pointer: Point, angle: f64, w: f64, h: f64, aspec
         };
         let floor = (min_w / nw).max(min_h / nh).min(1.0);
         let t = if t < floor && feasible(floor) { floor } else { t };
+        if t < floor {
+            // no room for the minimum frame in this direction: never return a degenerate box
+            return crate::crop_fit_angle(w, h, angle, aspect);
+        }
         return CropGeometry { rect: at(t).scale(1.0 / w, 1.0 / h), angle };
     }
     CropGeometry { rect: at(1.0).scale(1.0 / w, 1.0 / h), angle }
@@ -616,6 +620,17 @@ mod tests {
         let g = crop_box(p(-1.0, -1.0), p(0.3, 0.3), angle, W, H, None);
         assert!((g.rect.x0 - want.rect.x0).abs() < 1e-9 && (g.rect.x1 - want.rect.x1).abs() < 1e-9, "{g:?} vs {want:?}");
         assert!((g.angle - angle).abs() < 1e-12);
+    }
+
+    #[test]
+    fn box_with_the_anchor_on_the_edge_never_degenerates() {
+        // the anchor on the right edge: a pointer past it leaves only t = 0 feasible,
+        // which would be a zero-size box at the anchor
+        let g = crop_box(p(1.0, 0.5), p(1.5, 0.6), 0.0, W, H, None);
+        let min = MIN_CROP_FRACTION * W.min(H);
+        assert!(g.rect.width() * W >= min - 1e-6, "{g:?}");
+        assert!(g.rect.height() * H >= min - 1e-6, "{g:?}");
+        assert!(g.is_within_image(W, H), "{g:?}");
     }
 
     #[test]
