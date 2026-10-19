@@ -27,7 +27,7 @@ Only public Adobe descriptions were consulted (no Adobe code, assets or applicat
 1. the user's own binding for the command (`""` = none),
 2. the active profile's default (`CLASSIC_OVERRIDES`, `crates/ui-egui/src/keymap_profiles.rs`,
    else the command's declared key),
-3. the fixed keys (rating digits `0`–`9`, `6`–`9` labels, Home / End, Shift+←/→ in the grids),
+3. the fixed keys (rating digits `0`–`5`, `6`–`9` labels, Home / End, Shift+←/→ in the grids),
    which yield to 1 and 2,
 4. the secondary keys (`ALIASES`; the Classic profile adds `⇧P`, `⌘I`, `Ctrl+Y`), which yield
    to 1 and 2 as well.
@@ -119,7 +119,8 @@ Notes on the edges, all covered by `crates/ui-egui/src/tests_keymap.rs` (`mod cl
 
 ## Deliberate differences from Adobe (Classic profile)
 
-- **No module switchers**: `⌘⌥1`–`⌘⌥7` and the `⌘0`–`⌘9` panel tabs have nothing to switch
+- **Module switchers**: `⌘⌥1` (Library), `⌘⌥2` (Develop) and `⌘⌥5` (Slideshow) work as fixed
+  aliases; the rest of the `⌘⌥3`–`⌘⌥7` row and the `⌘0`–`⌘9` panel tabs have nothing to switch
   (single window by design), and `F8` / `Tab` / `F5` panel keys are not bound — see
   [parity-checklist](parity-checklist.md) (KEYC-MODULES, KEYC-PANELS) and [gaps](gaps.md).
 - **Keywords**: Adobe gives its Keywords panel `⌘K`; LightCraft has no keyword-focus command, so

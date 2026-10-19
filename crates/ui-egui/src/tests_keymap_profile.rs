@@ -130,6 +130,20 @@ fn classic_aliases_fire_only_under_the_classic_profile() {
     assert_eq!(h.app.session.catalog.photo(active).unwrap().flag, lightcraft_catalog::Flag::Pick, "Classic: ⇧P flags and advances");
 }
 
+/// A user key survives the switch and owns its key alone: the profile default it displaced goes
+/// quiet instead of firing beside it (Classic's R is Crop, Lightroom's R is the Radial Gradient
+/// tool; give R to Survey in Classic, switch to Lightroom, and only Survey fires).
+#[test]
+fn a_user_key_silences_the_profile_default_displaced_by_it() {
+    let mut h = demo();
+    h.app.run("app.setKeymapProfile", json!({"profile": "classic"})).unwrap();
+    h.app.run("app.setShortcut", json!({"id": "view.survey", "shortcut": "R"})).unwrap();
+    h.app.run("app.setKeymapProfile", json!({"profile": "lightroom"})).unwrap();
+    key(&mut h, "R", false);
+    assert_eq!(h.app.ui.tool, "", "Lightroom's displaced R default (radial) is quiet");
+    assert!(matches!(h.app.ui.view, crate::state::ViewMode::Survey), "R is the user's Survey");
+}
+
 /// The profile selector at the top of Help ▸ Keyboard Shortcuts switches the profile both ways.
 #[test]
 fn the_keymap_panel_switches_profiles() {

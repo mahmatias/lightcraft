@@ -436,12 +436,17 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                     "view.maskOverlay" | "dialog.createPreset" | "version.create" => !edit_tool_open,
                     _ => false,
                 };
+            // a profile default yields to the user's own key: after a profile switch the
+            // displaced default must not fire beside the assignment that took its key
+            let displaced = keymap.get(b.id).is_none()
+                && binding(profile, keymap, b.id, b.default).and_then(parse).is_some_and(|mk| user_keys.contains(&mk));
             if let Some(sc) = binding(profile, keymap, b.id, b.default)
                 && let Some((m, k)) = parse(sc)
                 && !native(sc)
                 && !(k == Key::Escape && popup_open)
                 && matches(i, m, k)
                 && !yields
+                && !displaced
                 && let Some(id) = grid_key_command(keymap, grid, app.ui.fullscreen, b.id, (m, k))
             {
                 fire.push(id.to_string());
