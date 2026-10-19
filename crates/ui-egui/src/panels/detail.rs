@@ -1894,6 +1894,13 @@ fn dist_to_quad(pts: &[Pos2], q: Pos2) -> f32 {
     (0..4).map(|i| point_segment_dist(q, pts[i], pts[(i + 1) % 4])).fold(f32::INFINITY, f32::min)
 }
 
+/// How far `q` is from the segment `a`–`b` (screen pixels).
+fn point_segment_dist(q: Pos2, a: Pos2, b: Pos2) -> f32 {
+    let ab = b - a;
+    let t = if ab.length_sq() > 0.0 { ((q - a).dot(ab) / ab.length_sq()).clamp(0.0, 1.0) } else { 0.0 };
+    (a + ab * t).distance(q)
+}
+
 /// Keyboard stand-ins for the crop handles: an arrow press drags the focused one by a step (one
 /// undo step each), as a pointer drag from its place would. Return applies the crop. True when the
 /// frame is over (the crop was applied).

@@ -498,16 +498,18 @@ impl Default for AppSettings {
             focus_point: false,
             zoom_to_focus: true,
             loupe_info: LoupeInfo::default(),
-            crop_interaction_style: "lightroom".to_string(),
+            crop_interaction_style: "photoshop".to_string(),
         }
     }
 }
 
 impl AppSettings {
     /// The crop canvas follows Lightroom (the frame stays put; the image pans and rotates under
-    /// it, and a drag in the dimmed area draws a new box) unless the saved style is "photoshop".
+    /// it, and a drag in the dimmed area draws a new box) when the saved style is "lightroom";
+    /// anything else — including the default and an unknown value — keeps the Photoshop-style
+    /// canvas (the tool's earlier behaviour).
     pub fn crop_lightroom(&self) -> bool {
-        self.crop_interaction_style != "photoshop"
+        self.crop_interaction_style == "lightroom"
     }
 }
 

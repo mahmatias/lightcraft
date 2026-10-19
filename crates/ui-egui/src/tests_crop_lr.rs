@@ -24,6 +24,16 @@ fn crop_tool() -> Headless {
     h
 }
 
+/// The crop panel with the Lightroom canvas opted in (the default is Photoshop).
+fn crop_tool_lr() -> Headless {
+    let mut h = crop_tool();
+    let r = h.request("ui.clickWidget", json!({"id": "button:cropStyle-lightroom"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert!(h.app.ui.settings.crop_lightroom());
+    h
+}
+
 fn has(h: &Headless, id: &str) -> bool {
     h.app.widgets.iter().any(|(w, _)| w == id)
 }
@@ -42,37 +52,39 @@ fn pixel(im: &egui::ColorImage, p: egui::Pos2) -> egui::Color32 {
     im.pixels[p.y.round() as usize * im.size[0] + p.x.round() as usize]
 }
 
-/// The crop interaction defaults to the Lightroom style, and the Crop panel offers both styles.
+/// The crop interaction defaults to the Photoshop style (the tool's earlier behaviour), so an
+/// existing user's canvas is unchanged until they opt in; the Crop panel offers both styles.
 #[test]
-fn the_crop_interaction_defaults_to_lightroom() {
+fn the_crop_interaction_defaults_to_photoshop() {
     let h = crop_tool();
-    assert_eq!(h.app.ui.settings.crop_interaction_style, "lightroom");
-    assert!(h.app.ui.settings.crop_lightroom());
+    assert_eq!(h.app.ui.settings.crop_interaction_style, "photoshop");
+    assert!(!h.app.ui.settings.crop_lightroom());
     assert!(has(&h, "button:cropStyle-lightroom"), "the style combo offers Lightroom");
     assert!(has(&h, "button:cropStyle-photoshop"), "and Photoshop");
 }
 
-/// The style combo in the Crop panel switches the stored setting, and with it the behaviour.
+/// The style combo in the Crop panel switches the stored setting, and with it the behaviour:
+/// Lightroom is a click away, and clicking it back keeps the old canvas.
 #[test]
 fn the_style_combo_switches_the_crop_interaction() {
     let mut h = crop_tool();
-    let r = h.request("ui.clickWidget", json!({"id": "button:cropStyle-photoshop"}), T);
-    assert_eq!(r["ok"], true, "{r}");
-    h.settle(SETTLE);
-    assert_eq!(h.app.ui.settings.crop_interaction_style, "photoshop");
-    assert!(!h.app.ui.settings.crop_lightroom());
     let r = h.request("ui.clickWidget", json!({"id": "button:cropStyle-lightroom"}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);
     assert_eq!(h.app.ui.settings.crop_interaction_style, "lightroom");
     assert!(h.app.ui.settings.crop_lightroom());
+    let r = h.request("ui.clickWidget", json!({"id": "button:cropStyle-photoshop"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert_eq!(h.app.ui.settings.crop_interaction_style, "photoshop");
+    assert!(!h.app.ui.settings.crop_lightroom());
 }
 
 /// In the Lightroom style the frame is fixed: a drag inside the box slides the photo under it (the
 /// applied rect moves opposite the pointer), and the painted photo slides with the pointer.
 #[test]
 fn dragging_inside_the_box_pans_the_photo_under_the_frame() {
-    let mut h = crop_tool();
+    let mut h = crop_tool_lr();
     let r = h.request("engine.execute", json!({"command": "crop.set", "params": {"rect": [0.25, 0.25, 0.75, 0.75]}}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);
@@ -97,7 +109,7 @@ fn dragging_inside_the_box_pans_the_photo_under_the_frame() {
 /// point, as in Lightroom's crop tool.
 #[test]
 fn dragging_in_the_dimmed_area_draws_a_new_box() {
-    let mut h = crop_tool();
+    let mut h = crop_tool_lr();
     let r = h.request("engine.execute", json!({"command": "crop.set", "params": {"rect": [0.1, 0.1, 0.6, 0.6]}}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);
@@ -116,7 +128,7 @@ fn dragging_in_the_dimmed_area_draws_a_new_box() {
 /// In the margin beside the photo a drag rotates, as in both styles; the angle readout follows.
 #[test]
 fn dragging_in_the_margin_rotates() {
-    let mut h = crop_tool();
+    let mut h = crop_tool_lr();
     let r = h.request(
         "ui.pointer",
         json!({"events": [{"kind": "down", "x": -0.05, "y": 0.2}, {"kind": "drag", "x": -0.05, "y": 0.25}, {"kind": "drag", "x": -0.05, "y": 0.3}]}),
@@ -133,7 +145,7 @@ fn dragging_in_the_margin_rotates() {
 /// dimmed photo, and the box itself is not redrawn from the press point.
 #[test]
 fn dragging_in_the_strip_around_the_box_rotates() {
-    let mut h = crop_tool();
+    let mut h = crop_tool_lr();
     let r = h.request("engine.execute", json!({"command": "crop.set", "params": {"rect": [0.1, 0.1, 0.6, 0.6]}}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);
@@ -163,7 +175,7 @@ fn dragging_in_the_strip_around_the_box_rotates() {
 /// dimmed photo — where a press draws a new box — it does not.
 #[test]
 fn the_pointer_offers_rotation_in_the_strip_around_the_box() {
-    let mut h = crop_tool();
+    let mut h = crop_tool_lr();
     let r = h.request("engine.execute", json!({"command": "crop.set", "params": {"rect": [0.1, 0.1, 0.6, 0.6]}}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);
@@ -186,7 +198,7 @@ fn the_pointer_offers_rotation_in_the_strip_around_the_box() {
 /// the box does.
 #[test]
 fn dragging_a_handle_still_resizes_the_box() {
-    let mut h = crop_tool();
+    let mut h = crop_tool_lr();
     let r = h.request("engine.execute", json!({"command": "crop.set", "params": {"rect": [0.2, 0.2, 0.8, 0.8]}}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);
@@ -231,7 +243,7 @@ fn photoshop_style_moves_the_box_with_the_pointer() {
 /// box, same angle, same spot on screen).
 #[test]
 fn the_lightroom_style_turns_the_photo_under_the_frame() {
-    let mut h = crop_tool();
+    let mut h = crop_tool_lr();
     let r = h.request("engine.execute", json!({"command": "develop.set", "params": {"control": "crop.angle", "value": -30.0}}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);
