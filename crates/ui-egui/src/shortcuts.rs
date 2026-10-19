@@ -405,8 +405,9 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     // which side of Classic's shared keys fires (see the bindable loop below)
     let edit_tool_open = app.ui.right.is_edit_tool();
     // the user's own keys: they own Enter's grid fallback, exactly as before profiles existed
-    // (tool.done declares Enter too — a declared key never silenced the grid's open)
-    let user_keys: Vec<(Modifiers, Key)> = keymap.values().filter_map(|s| parse(s)).collect();
+    // (tool.done declares Enter too — a declared key never silenced the grid's open); an entry
+    // for a command the build doesn't know is not a binding and claims nothing
+    let user_keys: Vec<(Modifiers, Key)> = keymap.iter().filter(|(id, _)| find_bindable(id).is_some()).filter_map(|(_, s)| parse(s)).collect();
     // keys a binding owns — the user's and the active profile's: the fixed bindings below
     // (aliases, ratings) yield to them
     let taken: Vec<(Modifiers, Key)> =
