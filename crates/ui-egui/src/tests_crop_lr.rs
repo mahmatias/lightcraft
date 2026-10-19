@@ -128,6 +128,60 @@ fn dragging_in_the_margin_rotates() {
     assert!(has(&h, "cropAngleReadout"), "the angle is shown while rotating");
 }
 
+/// The straighten zone sits next to the selection: a drag in the strip right around the crop box
+/// rotates (with the angle readout and the straighten grid), instead of drawing a new box over the
+/// dimmed photo, and the box itself is not redrawn from the press point.
+#[test]
+fn dragging_in_the_strip_around_the_box_rotates() {
+    let mut h = crop_tool();
+    let r = h.request("engine.execute", json!({"command": "crop.set", "params": {"rect": [0.1, 0.1, 0.6, 0.6]}}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    let img = h.app.image_rect.expect("the photo on screen");
+    // 30 px right of the box's right edge at mid-height: inside the photo, within the strip
+    let x = (0.6 + 30.0 / img.width()) as f64;
+    let r = h.request(
+        "ui.pointer",
+        json!({"events": [{"kind": "down", "x": x, "y": 0.35}, {"kind": "drag", "x": x, "y": 0.45}, {"kind": "drag", "x": x, "y": 0.55}]}),
+        T,
+    );
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert!(angle(&h) != 0.0, "the drag in the strip rotated the crop");
+    assert!(has(&h, "cropAngleReadout"), "the angle is shown while rotating");
+    assert!(has(&h, "cropStraightenGrid"), "the straighten grid is shown inside the selection");
+    let r = h.request("ui.pointer", json!({"events": [{"kind": "up", "x": x, "y": 0.55}]}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    let b = rect(&h);
+    assert!((b.x0 - x).abs() > 0.01 && (b.y0 - 0.35).abs() > 0.01, "no new box was drawn from the press point: {b:?}");
+    assert!(!has(&h, "cropStraightenGrid"), "the grid goes away with the drag");
+    assert!(!has(&h, "cropAngleReadout"), "and so does the readout");
+}
+
+/// The rotation glyph shows in the strip around the box (the straighten zone); deeper in the
+/// dimmed photo — where a press draws a new box — it does not.
+#[test]
+fn the_pointer_offers_rotation_in_the_strip_around_the_box() {
+    let mut h = crop_tool();
+    let r = h.request("engine.execute", json!({"command": "crop.set", "params": {"rect": [0.1, 0.1, 0.6, 0.6]}}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    let img = h.app.image_rect.expect("the photo on screen");
+    let hover = |h: &mut Headless, x: f32, y: f32| {
+        let p = egui::pos2(img.left() + x * img.width(), img.top() + y * img.height());
+        let r = h.request("ui.move", json!({"x": p.x, "y": p.y}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        h.settle(SETTLE);
+    };
+    hover(&mut h, 0.6 + 30.0 / img.width(), 0.35);
+    assert_eq!(h.last_cursor, egui::CursorIcon::None, "the system cursor gives way to the glyph");
+    assert!(has(&h, "cropRotateCursor"), "the rotation glyph is drawn next to the box");
+    hover(&mut h, 0.8, 0.75);
+    assert_eq!(h.last_cursor, egui::CursorIcon::Crosshair, "deep in the dimmed photo a press draws a new box");
+    assert!(!has(&h, "cropRotateCursor"));
+}
+
 /// The corner handles resize in both styles: the Lightroom style only changes what a drag inside
 /// the box does.
 #[test]
