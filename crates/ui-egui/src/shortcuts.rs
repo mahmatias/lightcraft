@@ -438,8 +438,8 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                 };
             // a profile default yields to the user's own key: after a profile switch the
             // displaced default must not fire beside the assignment that took its key
-            let displaced = keymap.get(b.id).is_none()
-                && binding(profile, keymap, b.id, b.default).and_then(parse).is_some_and(|mk| user_keys.contains(&mk));
+            let displaced =
+                keymap.get(b.id).is_none() && binding(profile, keymap, b.id, b.default).and_then(parse).is_some_and(|mk| user_keys.contains(&mk));
             if let Some(sc) = binding(profile, keymap, b.id, b.default)
                 && let Some((m, k)) = parse(sc)
                 && !native(sc)
