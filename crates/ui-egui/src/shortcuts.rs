@@ -672,7 +672,9 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             // B: the Quick Collection in the grids (both profiles' album key). The shipped
             // profile's brush sits on B and its grid branch carries the same action; Classic
             // moves the brush to K, and the fixed B above toggles the album alone.
-            if f == "album.toggleTarget" || (f == "tool.brush" && brush_on_b && matches!(app.ui.view, crate::state::ViewMode::PhotoGrid | crate::state::ViewMode::SquareGrid)) {
+            if f == "album.toggleTarget"
+                || (f == "tool.brush" && brush_on_b && matches!(app.ui.view, crate::state::ViewMode::PhotoGrid | crate::state::ViewMode::SquareGrid))
+            {
                 if let Ok(r) = app.run("album.toggleTarget", json!({})) {
                     let n = app.session.selected().len();
                     let what = crate::i18n::tr_format!("{n} photo{}", if n == 1 { "" } else { "s" }, n = n);
