@@ -469,6 +469,13 @@ fn ctrl_alt_module_keys_switch_modules() {
     assert_eq!(h.app.ui.view, ViewMode::PhotoGrid, "Ctrl+Alt+1 is the Library module");
     press(&mut h, "5", &["ctrl", "alt"]);
     assert!(h.app.ui.slideshow.is_some(), "Ctrl+Alt+5 starts the slideshow");
+    // macOS reads the same Adobe keys as ⌘⌥
+    h.app.ui.slideshow = None;
+    press(&mut h, "2", &["cmd", "alt"]);
+    assert_eq!(h.app.ui.view, ViewMode::Detail, "Cmd+Alt+2 is the Develop module");
+    assert_eq!(h.app.ui.right, RightPanel::Edit, "Cmd+Alt+2 opens the Develop panel");
+    press(&mut h, "1", &["cmd", "alt"]);
+    assert_eq!(h.app.ui.view, ViewMode::PhotoGrid, "Cmd+Alt+1 is the Library module");
 }
 
 /// The Classic profile shares keys between its tables: the open edit panel decides which side
@@ -536,5 +543,18 @@ mod classic {
         press(&mut h, "N", &["cmd", "shift"]);
         assert!(matches!(h.app.ui.dialog, Some(Dialog::CreatePreset { .. })), "an edit tool open: ⌘⇧N is Create Preset");
         h.app.ui.dialog = None;
+    }
+
+    /// A shared key that the user moved to another key keeps firing with the panel that used
+    /// to decide its partner open: F9 is People's own key now, the mask overlay stays on O.
+    #[test]
+    fn a_rebound_shared_key_still_fires_with_the_context_panel_open() {
+        let mut h = classic_demo();
+        crate::shortcuts::assign(h.app.ui.settings.profile(), &mut h.app.ui.settings.keymap, "view.people", Some("F9")).unwrap();
+        open_edit(&mut h);
+        let mask_before = h.app.ui.mask_overlay;
+        press(&mut h, "F9", &[]);
+        assert_eq!(h.app.ui.view, ViewMode::People, "F9 opens People even with an edit tool open");
+        assert_eq!(h.app.ui.mask_overlay, mask_before, "and never reaches the mask overlay");
     }
 }

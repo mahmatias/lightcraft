@@ -62,7 +62,7 @@ line in Adobe's public table above.
 | Edit in PhotoCraft | `⌘⇧E` | `⌘E` | Edit in Photoshop |
 | Export with previous | `⌘⌥⇧E` | `⌘⌥⇧E` | Export with previous settings |
 | Create Version | `⌘⇧S` (`⇧M` alias) | `⌘N` (Develop side) | Create a new snapshot |
-| New Album | `⌘N` | `⌘N` (Library side) | (Classic's `⌘N` is New Catalog, which has no counterpart here) |
+| New Album | `⌘N` | `⌘N` (Library side) | (Adobe documents Classic's `⌘N` as New Collection, which has no counterpart here) |
 | Create Preset | `⌘⇧P` | `⌘⇧N` | Create a new preset |
 | New Folder | `⌘⇧N` | `⌘⇧N` | Create a new folder in the Library module |
 | Sync settings | — | `⌘⇧S` | Sync settings |
@@ -135,8 +135,9 @@ Notes on the edges, all covered by `crates/ui-egui/src/tests_keymap.rs` (`mod cl
 ## Contributing this upstream
 
 This is a clean-room feature: the Classic table above was transcribed row by row from Adobe's
-public shortcut page (linked at the top), with no Adobe code or assets, and every row is a line
-in `CLASSIC_OVERRIDES` / `CLASSIC_ALIASES` with its Adobe row named in this document. A pull
+public shortcut page (linked at the top), with no Adobe code or assets, and each row is either a
+shipped key already in place or a line in `CLASSIC_OVERRIDES` / `CLASSIC_ALIASES` with its Adobe
+row named in this document. A pull
 request would carry:
 
 - `crates/ui-egui/src/keymap_profiles.rs` (profiles and tables) and the profile plumbing in

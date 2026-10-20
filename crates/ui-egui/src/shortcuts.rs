@@ -255,10 +255,14 @@ pub const ALIASES: &[(&str, &str, &str)] = &[
     ("Alt+7", "keyword.toggleFromSet", r#"{"index": 7}"#),
     ("Alt+8", "keyword.toggleFromSet", r#"{"index": 8}"#),
     ("Alt+9", "keyword.toggleFromSet", r#"{"index": 9}"#),
-    // modules as Adobe maps them: 1 Library, 2 Develop, 5 Slideshow (Ctrl+Alt = Adobe's ⌘⌥)
+    // modules as Adobe maps them: 1 Library, 2 Develop, 5 Slideshow (Ctrl on Windows/Linux,
+    // Cmd = ⌘ on macOS)
     ("Ctrl+Alt+1", "view.photoGrid", "{}"),
     ("Ctrl+Alt+2", "view.develop", "{}"),
     ("Ctrl+Alt+5", "view.slideshow", "{}"),
+    ("Cmd+Alt+1", "view.photoGrid", "{}"),
+    ("Cmd+Alt+2", "view.develop", "{}"),
+    ("Cmd+Alt+5", "view.slideshow", "{}"),
 ];
 
 pub fn parse(s: &str) -> Option<(Modifiers, Key)> {
@@ -412,6 +416,9 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     // (aliases, ratings) yield to them
     let taken: Vec<(Modifiers, Key)> =
         user_keys.iter().copied().chain(bindable().iter().filter_map(|b| binding(profile, keymap, b.id, b.default).and_then(parse))).collect();
+    // which key the brush sits on: the shipped profile keeps it on B, whose grid action (the
+    // Quick Collection) must stay on B when Classic moves the brush to K
+    let brush_on_b = binding(profile, keymap, "tool.brush", find_bindable("tool.brush").and_then(|b| b.default)) == Some("B");
     // an open popup (a menu, a date picker's calendar) closes on Esc itself: Esc's command (Back,
     // which also closes dialogs) waits until nothing is open
     let popup_open = egui::Popup::is_any_open(ctx);
@@ -436,11 +443,20 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                     "view.people" | "dialog.newAlbum" | "dialog.newFolder" => edit_tool_open,
                     "view.maskOverlay" | "dialog.createPreset" | "version.create" => !edit_tool_open,
                     _ => false,
-                };
+                }
+                // and only while the two sides still share one key: a rebind that moved a side
+                // away silences nothing (F9 for People keeps firing with the Edit panel open)
+                && CONTEXTUAL.iter().any(|(x, y)| {
+                    let partner = if *x == b.id { *y } else if *y == b.id { *x } else { return false };
+                    find_bindable(partner).is_some_and(|pb| binding(profile, keymap, partner, pb.default) == binding(profile, keymap, b.id, b.default))
+                });
             // a profile default yields to the user's own key: after a profile switch the
-            // displaced default must not fire beside the assignment that took its key
+            // displaced default must not fire beside the assignment that took its key. An
+            // entry that does not parse is not an override — the binding falls back to the
+            // profile default, which the displaced rule then still yields.
+            let overridden = keymap.get(b.id).is_some_and(|s| s.is_empty() || parse(s).is_some());
             let displaced =
-                keymap.get(b.id).is_none() && binding(profile, keymap, b.id, b.default).and_then(parse).is_some_and(|mk| user_keys.contains(&mk));
+                !overridden && binding(profile, keymap, b.id, b.default).and_then(parse).is_some_and(|mk| user_keys.contains(&mk));
             if let Some(sc) = binding(profile, keymap, b.id, b.default)
                 && let Some((m, k)) = parse(sc)
                 && !native(sc)
@@ -477,6 +493,11 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             if matches(i, Modifiers::NONE, key) && !native(sc) && !taken.contains(&(Modifiers::NONE, key)) {
                 fire.push(format!("label:{label}"));
             }
+        }
+        // B: the Quick Collection in both grids — the album key itself, so Classic keeps it
+        // when the brush moves to K (the shipped profile's brush on B carries the same action)
+        if grid && matches(i, Modifiers::NONE, Key::B) && !native("B") && !taken.contains(&(Modifiers::NONE, Key::B)) {
+            fire.push("album.toggleTarget".to_string());
         }
         if grid_navigation {
             // Home / End: the first / last photo of the view
@@ -648,8 +669,10 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                     continue;
                 }
             }
-            // B: the brush while editing; in the grids, add to the target album (Quick Collection)
-            if f == "tool.brush" && matches!(app.ui.view, crate::state::ViewMode::PhotoGrid | crate::state::ViewMode::SquareGrid) {
+            // B: the Quick Collection in the grids (both profiles' album key). The shipped
+            // profile's brush sits on B and its grid branch carries the same action; Classic
+            // moves the brush to K, and the fixed B above toggles the album alone.
+            if f == "album.toggleTarget" || (f == "tool.brush" && brush_on_b && matches!(app.ui.view, crate::state::ViewMode::PhotoGrid | crate::state::ViewMode::SquareGrid)) {
                 if let Ok(r) = app.run("album.toggleTarget", json!({})) {
                     let n = app.session.selected().len();
                     let what = crate::i18n::tr_format!("{n} photo{}", if n == 1 { "" } else { "s" }, n = n);

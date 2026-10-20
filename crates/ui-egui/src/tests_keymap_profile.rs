@@ -144,6 +144,23 @@ fn a_user_key_silences_the_profile_default_displaced_by_it() {
     assert!(matches!(h.app.ui.view, crate::state::ViewMode::Survey), "R is the user's Survey");
 }
 
+/// The grids' Quick Collection stays on B under both profiles: the shipped profile binds the
+/// brush to B and its grid branch carries the action; Classic moves the brush to K and B is
+/// the album key alone (K never toggles the album).
+#[test]
+fn classic_grids_keep_the_quick_collection_on_b_and_the_brush_on_k() {
+    let mut h = demo();
+    h.app.run("app.setKeymapProfile", json!({"profile": "classic"})).unwrap();
+    let r = h.request("ui.set", json!({"view": "photoGrid"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    key(&mut h, "B", false);
+    let q = h.app.session.catalog.quick_collection().expect("quick collection");
+    assert_eq!(h.app.session.catalog.album_count(q), 1, "Classic: B is the Quick Collection in the grids");
+    key(&mut h, "K", false);
+    assert_eq!(h.app.session.catalog.album_count(q), 1, "K (the brush) never toggles the album");
+}
+
 /// The profile selector at the top of Help ▸ Keyboard Shortcuts switches the profile both ways.
 #[test]
 fn the_keymap_panel_switches_profiles() {
