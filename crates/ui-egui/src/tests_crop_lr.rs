@@ -103,6 +103,13 @@ fn dragging_inside_the_box_pans_the_photo_under_the_frame() {
     // the photo slid under the fixed frame: the same spot shows a different part of it
     let at = egui::pos2(img.left() + 0.45 * img.width(), img.center().y);
     assert_ne!(pixel(&h.paint(), at), pixel(&before, at), "the photo slid with the pointer");
+    // the display offset survives the release: the photo keeps sitting where the pan left it
+    assert_ne!(h.app.ui.crop_pan, egui::Vec2::ZERO, "the pan persists after the release");
+    // closing the tool clears it: the photo is back under the frame
+    let r = h.request("engine.execute", json!({"command": "tool.done"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert_eq!(h.app.ui.crop_pan, egui::Vec2::ZERO, "closing the tool clears the pan");
 }
 
 /// In the dimmed area over the photo (outside the box) a drag draws a new box from the press

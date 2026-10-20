@@ -41,6 +41,8 @@ pub enum Gesture {
     CropPan {
         /// The crop rect when the pan started (the display offset is measured from it).
         start_rect: lightcraft_geom::Rect,
+        /// The display offset the pan started from (a pan resumes where the last one left).
+        pan0: egui::Vec2,
     },
     /// Lightroom-style crop: a new box drawn in the dimmed area, anchored at `a0`
     /// (normalized, straightened frame).
@@ -738,16 +740,29 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         }
     }
     // Lightroom-style crop: the image turns with the angle and slides with the pan under the fixed
-    // frame (the offset is the applied rect's own movement; it resets when the drag ends)
+    // frame (the offset is the applied rect's own movement; it survives the release — the photo
+    // keeps sitting where the pan left it — and the tool closing clears it)
     let crop_lr = crop_tool && app.ui.settings.crop_lightroom();
     let crop_angle = d.crop.geometry.angle;
-    let crop_pan = match &app.gesture {
-        Some(Gesture::CropPan { start_rect }) if crop_lr => {
-            let (c0, c1) = (start_rect.center(), d.crop.geometry.rect.center());
-            let (dx, dy) = ((c1.x - c0.x) as f32, (c1.y - c0.y) as f32);
-            -vec2(dx * img_rect.width(), dy * img_rect.height())
+    let crop_pan = if crop_lr {
+        let during = match &app.gesture {
+            Some(Gesture::CropPan { start_rect, pan0 }) => {
+                let (c0, c1) = (start_rect.center(), d.crop.geometry.rect.center());
+                let (dx, dy) = ((c1.x - c0.x) as f32, (c1.y - c0.y) as f32);
+                Some(*pan0 - vec2(dx * img_rect.width(), dy * img_rect.height()))
+            }
+            _ => None,
+        };
+        match during {
+            Some(pan) => {
+                app.ui.crop_pan = pan;
+                pan
+            }
+            None => app.ui.crop_pan,
         }
-        _ => vec2(0.0, 0.0),
+    } else {
+        app.ui.crop_pan = egui::Vec2::ZERO;
+        egui::Vec2::ZERO
     };
     let p = ui.painter_at(canvas);
     // what a view slot shows: its own render of this photo, else the stand-ins (no blank frame
@@ -851,12 +866,16 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         p.image(tex.tex.id(), top, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, v)), Color32::WHITE);
     }
     // …and the window renders go over the whole-frame ones, all of them, where they belong in the
-    // frame (clipped to their pane, or their side of the line)
-    for (v, view) in &windows {
-        // (holding `\` in a wipe shows the Before everywhere: it is the Before view alone then)
-        let mode = if show_before { BeforeAfter::Original } else { app.ui.before_after };
-        let clip = crate::region::window_clip(mode, v.before, v.visible, canvas, img_rect);
-        draw_window(&p.with_clip_rect(clip), app, &window_ctx, v, view);
+    // frame (clipped to their pane, or their side of the line). The Lightroom crop display turns
+    // and slides the photo and the windows don't follow it yet: while that transform is on, the
+    // consistent whole-frame render alone beats tiles that stay behind where the photo was.
+    if !(crop_lr && (crop_angle.abs() > f64::EPSILON || crop_pan != egui::Vec2::ZERO)) {
+        for (v, view) in &windows {
+            // (holding `\` in a wipe shows the Before everywhere: it is the Before view alone then)
+            let mode = if show_before { BeforeAfter::Original } else { app.ui.before_after };
+            let clip = crate::region::window_clip(mode, v.before, v.visible, canvas, img_rect);
+            draw_window(&p.with_clip_rect(clip), app, &window_ctx, v, view);
+        }
     }
     if let Some((bg, g)) = before_badge {
         p.rect_filled(bg, 4.0, Color32::from_black_alpha(160));
@@ -1803,7 +1822,7 @@ fn crop_overlay(
             Some(h) => Gesture::CropHandle { handle: h as u8, start: d.crop.geometry.rect, angle: d.crop.geometry.angle },
             None if inside(q) => {
                 if lr {
-                    Gesture::CropPan { start_rect: d.crop.geometry.rect }
+                    Gesture::CropPan { start_rect: d.crop.geometry.rect, pan0: app.ui.crop_pan }
                 } else {
                     Gesture::CropHandle { handle: 8, start: d.crop.geometry.rect, angle: d.crop.geometry.angle }
                 }
@@ -1835,7 +1854,7 @@ fn crop_overlay(
                     json!({"handle": handle, "from": [orig.x, orig.y], "to": [n.x, n.y], "start": [start.x0, start.y0, start.x1, start.y1], "keepRatio": keep_ratio}),
                 );
             }
-            Some(Gesture::CropPan { start_rect }) => {
+            Some(Gesture::CropPan { start_rect, .. }) => {
                 // The frame is fixed: the applied rect moves opposite the pointer (the same `move`
                 // drag with the delta inverted), and the display slides by the applied delta, so the
                 // photo follows the pointer under the frame.

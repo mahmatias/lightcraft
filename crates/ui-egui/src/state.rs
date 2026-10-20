@@ -728,6 +728,11 @@ pub struct UiState {
     /// a later save succeeds).
     #[serde(skip)]
     pub unsaved_seen: bool,
+    /// The Lightroom-style crop display offset (screen points): the applied rect's movement
+    /// since the pan began. It survives the release so the photo keeps sitting where the pan
+    /// left it while the tool stays open; the tool closing (or another photo) clears it.
+    #[serde(skip)]
+    pub crop_pan: egui::Vec2,
     pub view: ViewMode,
     pub left_panel: bool,
     pub right: RightPanel,
@@ -1380,6 +1385,7 @@ impl Default for UiState {
             language: crate::i18n::default_language(),
             preview_build_seen: None,
             unsaved_seen: false,
+            crop_pan: egui::Vec2::ZERO,
             luminance_map_restore: None,
             view: ViewMode::Detail,
             left_panel: false,
