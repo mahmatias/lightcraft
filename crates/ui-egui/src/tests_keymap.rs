@@ -478,6 +478,18 @@ fn ctrl_alt_module_keys_switch_modules() {
     assert_eq!(h.app.ui.view, ViewMode::PhotoGrid, "Cmd+Alt+1 is the Library module");
 }
 
+/// A user-owned Cmd+Alt+5 owns the event on Windows/Linux too (Cmd is the physical Ctrl
+/// there, so the press sets both bits): the slideshow alias yields instead of firing beside it.
+#[test]
+fn a_user_cmd_alt_key_silences_the_module_alias() {
+    let mut h = demo();
+    h.app.run("app.setShortcut", json!({"id": "view.survey", "shortcut": "Cmd+Alt+5"})).unwrap();
+    // Windows' physical Ctrl: the platform reports it as ctrl and command both
+    press(&mut h, "5", &["ctrl", "cmd", "alt"]);
+    assert!(h.app.ui.slideshow.is_none(), "the alias yielded to the user's Cmd+Alt+5");
+    assert!(matches!(h.app.ui.view, ViewMode::Survey), "the press is the user's Survey");
+}
+
 /// The Classic profile shares keys between its tables: the open edit panel decides which side
 /// fires (docs/classic-keymap.md → "Keys the Classic profile shares by context").
 mod classic {

@@ -474,8 +474,12 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
         for (sc, id, params) in ALIASES.iter().chain(profile_aliases) {
             if let Some((m, k)) = parse(sc).filter(|_| !native(sc))
                 && !(k == Key::Escape && popup_open)
-                && !taken.contains(&(m, k))
+                // the event, not the tuple: on Windows/Linux Cmd is the physical Ctrl, so one
+                // press reads both module aliases — and a user's own key on either reading owns
+                // the event. One event fires an alias's command once.
+                && !taken.iter().any(|(tm, tk)| matches(i, *tm, *tk))
                 && matches(i, m, k)
+                && !aliased.iter().any(|(a, _)| *a == *id)
             {
                 aliased.push((id, serde_json::from_str(params).unwrap_or_default()));
             }
