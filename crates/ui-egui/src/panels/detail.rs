@@ -1716,11 +1716,7 @@ fn crop_overlay(
     // fixed axis-aligned box, so the pointer only slides by the pan (rotating again would skew it);
     // Photoshop turns the box itself, so the pointer is unturned the way the quad is turned.
     let to_crop_space = |q: Pos2, angle: f64| {
-        if lr {
-            map.norm(q - pan)
-        } else {
-            to_straight(map.norm(q), angle, frame)
-        }
+        if lr { map.norm(q - pan) } else { to_straight(map.norm(q), angle, frame) }
     };
     let inside = |q: Pos2| {
         let s = to_crop_space(q, d.crop.geometry.angle);
@@ -1940,11 +1936,8 @@ fn crop_keys(
         // the handle is already in the crop frame; Photoshop turns the box itself, so unturn it
         let angle = d.crop.geometry.angle;
         let to_q = at + vec2(dx as f32 * map.rect.width(), dy as f32 * map.rect.height());
-        let (from, to) = if lr {
-            (map.norm(at), map.norm(to_q))
-        } else {
-            (to_straight(map.norm(at), angle, frame), to_straight(map.norm(to_q), angle, frame))
-        };
+        let (from, to) =
+            if lr { (map.norm(at), map.norm(to_q)) } else { (to_straight(map.norm(at), angle, frame), to_straight(map.norm(to_q), angle, frame)) };
         let started = app.run("develop.beginInteraction", json!({"label": "Crop"})).and_then(|_| app.begin_crop().map(|_| serde_json::Value::Null));
         if let Err(e) = started {
             app.ui.status = e;
