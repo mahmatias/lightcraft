@@ -284,3 +284,30 @@ fn the_lightroom_style_turns_the_photo_under_the_frame() {
     assert!(img.shrink(4.0).contains(at), "the spot is on the photo");
     assert_ne!(pixel(&turned, at), pixel(&straight, at), "the Lightroom style turned the photo");
 }
+
+/// The keyboard moves a handle the way the pointer does: under the Lightroom style the arrows
+/// follow the screen — the box is axis-aligned, so at an angle the drag must not unturn the
+/// coordinates (the Photoshop path) and skew the box away from the arrow's own direction.
+#[test]
+fn keyboard_arrows_at_an_angle_move_the_box_without_skew() {
+    let mut h = crop_tool_lr();
+    let r = h.request("engine.execute", json!({"command": "develop.set", "params": {"control": "crop.angle", "value": 12.0}}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("engine.execute", json!({"command": "crop.set", "params": {"rect": [0.2, 0.2, 0.6, 0.6]}}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert!(angle(&h) != 0.0, "the photo is turned");
+    // the bottom-right corner, moved left: only x changes, the bottom edge holds
+    h.step();
+    h.view.ctx.memory_mut(|m| m.request_focus(crate::canvas_keys::id("crop:2")));
+    h.step();
+    h.step();
+    assert_eq!(h.view.ctx.memory(|m| m.focused()), Some(crate::canvas_keys::id("crop:2")), "the handle takes the focus");
+    let before = rect(&h);
+    let r = h.request("ui.key", json!({"key": "left"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    let after = rect(&h);
+    assert!(after.x1 < before.x1 - 1e-4, "the right edge moved with the arrow: {before:?} -> {after:?}");
+    assert!((after.y1 - before.y1).abs() < 1e-6, "and not vertically (no skew): {after:?}");
+}

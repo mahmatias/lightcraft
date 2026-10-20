@@ -1709,7 +1709,7 @@ fn crop_overlay(
         p.rect_filled(Rect::from_center_size(*h, vec2(3.0, s)), 0.0, Color32::WHITE);
     }
     // the keyboard: each handle (and the box itself) a stand-in Tab reaches and the arrows move
-    if crop_keys(app, ui, map, &handles, &pts, d, frame) {
+    if crop_keys(app, ui, map, &handles, &pts, d, frame, lr) {
         return;
     }
     // Pointer to the crop's straightened frame: Lightroom draws the image turned and slid under a
@@ -1921,6 +1921,7 @@ fn crop_keys(
     pts: &[Pos2],
     d: &DevelopSettings,
     frame: &Frame,
+    lr: bool,
 ) -> bool {
     let r = d.crop.geometry.rect;
     let centre = if pts.len() == 4 { pts.iter().fold(Pos2::ZERO, |acc, q| acc + q.to_vec2() / 4.0) } else { return false };
@@ -1934,11 +1935,16 @@ fn crop_keys(
             return true;
         }
         let Some((dx, dy)) = keys.delta else { continue };
-        // the drag runs in the straightened crop frame, as a pointer drag from the handle would;
-        // the arrows follow the screen
+        // the drag runs in the crop's straightened frame, as a pointer drag from the handle
+        // would: Lightroom's box is axis-aligned on screen (the image is the turned thing), so
+        // the handle is already in the crop frame; Photoshop turns the box itself, so unturn it
         let angle = d.crop.geometry.angle;
         let to_q = at + vec2(dx as f32 * map.rect.width(), dy as f32 * map.rect.height());
-        let (from, to) = (to_straight(map.norm(at), angle, frame), to_straight(map.norm(to_q), angle, frame));
+        let (from, to) = if lr {
+            (map.norm(at), map.norm(to_q))
+        } else {
+            (to_straight(map.norm(at), angle, frame), to_straight(map.norm(to_q), angle, frame))
+        };
         let started = app.run("develop.beginInteraction", json!({"label": "Crop"})).and_then(|_| app.begin_crop().map(|_| serde_json::Value::Null));
         if let Err(e) = started {
             app.ui.status = e;

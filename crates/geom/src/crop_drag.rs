@@ -631,6 +631,11 @@ mod tests {
         assert!(g.rect.width() * W >= min - 1e-6, "{g:?}");
         assert!(g.rect.height() * H >= min - 1e-6, "{g:?}");
         assert!(g.is_within_image(W, H), "{g:?}");
+        // the same on a corner: a click that lands exactly on the image corner and drags out
+        let g = crop_box(p(1.0, 1.0), p(1.5, 1.5), 0.0, W, H, None);
+        assert!(g.rect.width() * W >= min - 1e-6, "{g:?}");
+        assert!(g.rect.height() * H >= min - 1e-6, "{g:?}");
+        assert!(g.is_within_image(W, H), "{g:?}");
     }
 
     #[test]
