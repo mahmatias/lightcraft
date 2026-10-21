@@ -264,6 +264,12 @@ fn photoshop_style_moves_the_box_with_the_pointer() {
     h.settle(SETTLE);
     let b = rect(&h);
     assert!((b.x0 - 0.35).abs() < 1e-3 && (b.x1 - 0.85).abs() < 1e-3, "the box followed the pointer: {b:?}");
+    // release: without it the interaction never ends and the paint below would compare the
+    // draft the drag leaves on screen with the finished render `before` was taken from
+    let r = h.request("ui.pointer", json!({"events": [{"kind": "up", "x": 0.6, "y": 0.5}]}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert!(h.app.session.interaction.is_none(), "the drag ended at rest");
     // the photo stayed put: the same spot shows the same pixel
     let at = egui::pos2(img.left() + 0.5 * img.width(), img.center().y);
     assert_eq!(pixel(&h.paint(), at), pixel(&before, at), "the photo did not move");
