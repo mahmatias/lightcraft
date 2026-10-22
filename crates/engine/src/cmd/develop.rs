@@ -2,7 +2,8 @@
 
 use lightcraft_catalog::{Op, PhotoId, Version};
 use lightcraft_develop::{DevelopSettings, Preset, ProcessVersion, Section, SettingsGroup, Treatment, Upright, WbMode, controls};
-use lightcraft_geom::{CropGeometry, CropHandle, MIN_CROP_FRACTION, Point, Rect, crop_box, crop_fit_angle, drag_crop};use serde_json::{Value, json};
+use lightcraft_geom::{CropGeometry, CropHandle, MIN_CROP_FRACTION, Point, Rect, crop_box, crop_fit_angle, drag_crop};
+use serde_json::{Value, json};
 
 use super::{CommandSpec, always, bad, bool_or, cmd, f64_or, f64_req, has_active, has_clipboard, has_selection, index_req, ok, str_param};
 use crate::{Result, Session, media::SourceLevel};

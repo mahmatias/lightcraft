@@ -274,6 +274,8 @@ fn clip_half_plane(poly: &[Vec2], n: Vec2, b: f64) -> Vec<Vec2> {
         }
     }
     out
+}
+
 /// A box drawn from `anchor` to `pointer` (both normalized, in the straightened frame) as a new
 /// crop of the `w × h` image at `angle`: the anchor corner stays put and the opposite corner
 /// follows the pointer (the Lightroom-style drag in the dimmed area). `aspect` is the locked
