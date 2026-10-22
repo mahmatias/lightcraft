@@ -2198,12 +2198,6 @@ fn to_straight(n: Point, angle: f64, frame: &Frame) -> Point {
     Point::new(r.x / w, r.y / h)
 }
 
-/// How far `q` is from the segment `a`–`b` (screen pixels): the click that selects a guide.
-fn point_segment_dist(q: Pos2, a: Pos2, b: Pos2) -> f32 {
-    let ab = b - a;
-    let t = if ab.length_sq() > 0.0 { ((q - a).dot(ab) / ab.length_sq()).clamp(0.0, 1.0) } else { 0.0 };
-    (a + ab * t).distance(q)
-}
 /// The bounding box on screen of the photo's rectangle turned by `angle` about its centre (the
 /// Lightroom-style crop's dimmed area: the turned image may reach past the frame into the margin).
 fn rotated_image_bbox(r: Rect, angle: f64) -> Rect {
