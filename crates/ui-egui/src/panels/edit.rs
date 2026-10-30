@@ -86,7 +86,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if text_button(ui, "reset", crate::i18n::tr("Reset"), false)
-                    .on_hover_text(reset_tip(&app.ui.settings.keymap, ui.ctx().os() == egui::os::OperatingSystem::Mac))
+                    .on_hover_text(reset_tip(app.ui.settings.profile(), &app.ui.settings.keymap, ui.ctx().os() == egui::os::OperatingSystem::Mac))
                     .clicked()
                 {
                     reset_clicked = true;

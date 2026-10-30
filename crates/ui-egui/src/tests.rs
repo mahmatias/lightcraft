@@ -33,6 +33,7 @@ mod guided_guides;
 mod histogram_drag;
 mod info_dialogs;
 mod keymap;
+mod keymap_profile;
 mod keyword_files;
 mod keyword_list;
 mod keyword_set;
